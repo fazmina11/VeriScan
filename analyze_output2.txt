@@ -1,0 +1,26 @@
+﻿Analyzing VeriScan...                                           
+
+   info - Unnecessary use of multiple underscores - lib\features\auth\auth_gate.dart:49:18 - unnecessary_underscores
+
+flutter : 1 issue 
+found. (ran in 
+11.7s)
+At line:1 char:1
++ flutter analyze 
+--no-pub 2>&1 | 
+Out-File -FilePath 
+"analyze_output2.t 
+...
++ ~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo  
+            : NotS  
+  pecified: (1 is   
+ sue found. (ran    
+ in 11.7s):Stri    
+ng) [], RemoteE    
+xception
+    + FullyQualifie 
+   dErrorId : Nati  
+  veCommandError
+ 

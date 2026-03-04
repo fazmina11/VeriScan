@@ -1,0 +1,31 @@
+﻿Analyzing VeriScan...                                           
+
+   info - Unnecessary use of multiple underscores - lib\features\auth\auth_gate.dart:49:18 - unnecessary_underscores
+  error - Target of URI doesn't exist: 'biometric_service.dart' - lib\features\auth\individual_registration_screen.dart:8:8 - uri_does_not_exist
+  error - Undefined name 'biometricServiceProvider' - lib\features\auth\individual_registration_screen.dart:250:39 - undefined_identifier
+  error - Target of URI doesn't exist: 'biometric_service.dart' - lib\features\auth\professional_registration_screen.dart:8:8 - uri_does_not_exist
+  error - Undefined name 'biometricServiceProvider' - lib\features\auth\professional_registration_screen.dart:248:39 - undefined_identifier
+  error - The name 'MyApp' isn't a class - test\widget_test.dart:16:35 - creation_with_non_type
+
+flutter : 6 issues 
+found. (ran in 
+16.3s)
+At line:1 char:1
++ flutter analyze 
+--no-pub 2>&1 | 
+Out-File -FilePath 
+"analyze_output.tx 
+...
++ ~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo  
+            : NotS  
+  pecified: (6 is   
+ sues found. (ra    
+n in 16.3s):Str    
+ing) [], Remote    
+Exception
+    + FullyQualifie 
+   dErrorId : Nati  
+  veCommandError
+ 

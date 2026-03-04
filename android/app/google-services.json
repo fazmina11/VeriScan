@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "440177945192",
+    "project_id": "veriscan-97687",
+    "storage_bucket": "veriscan-97687.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:440177945192:android:f7a8acec3058213d7a69dd",
+        "android_client_info": {
+          "package_name": "com.veriscan.veriscan"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBXeel-998VsCqAu2CV4upt7pN6Fjkgd3c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
