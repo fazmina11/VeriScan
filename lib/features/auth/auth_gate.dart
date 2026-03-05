@@ -4,46 +4,25 @@ import '../../core/theme.dart';
 import '../../core/neon_styles.dart';
 import 'auth_provider.dart';
 
-/// Decides where to send the user based on auth state.
-class AuthGate extends ConsumerStatefulWidget {
+/// Decides where to send the user based on stored JWT token.
+class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
   @override
-  ConsumerState<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends ConsumerState<AuthGate> {
-  bool _navigated = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
 
     return authState.when(
-      data: (user) {
-        if (user == null) {
-          // Not logged in — redirect to login screen
-          if (!_navigated) {
-            _navigated = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                Navigator.pushReplacementNamed(context, '/login');
-              }
-            });
+      data: (isLoggedIn) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            Navigator.pushReplacementNamed(
+              context,
+              isLoggedIn ? '/hub' : '/login',
+            );
           }
-          return _buildLoadingScreen('Redirecting to login...');
-        }
-
-        // Logged in — redirect to hub
-        if (!_navigated) {
-          _navigated = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              Navigator.pushReplacementNamed(context, '/hub');
-            }
-          });
-        }
-        return _buildLoadingScreen('Loading...');
+        });
+        return _buildLoadingScreen(isLoggedIn ? 'Loading...' : 'Redirecting to login...');
       },
       loading: () => _buildLoadingScreen('Connecting...'),
       error: (e, _) => _buildLoadingScreen('Connection Error'),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme.dart';
 import '../../core/neon_styles.dart';
 import '../../widgets/glass_card.dart';
@@ -236,7 +235,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen>
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    // Validation
     if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       setState(() => _errorMessage = 'Please fill in all fields');
       return;
@@ -249,8 +247,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen>
     }
 
     if (password.length < 6) {
-      setState(
-          () => _errorMessage = 'Password must be at least 6 characters');
+      setState(() => _errorMessage = 'Password must be at least 6 characters');
       return;
     }
 
@@ -268,34 +265,15 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen>
       final authService = ref.read(authServiceProvider);
       await authService.signUpWithEmail(email, password);
       if (mounted) {
-        // Navigate to RoleSelectionScreen for profile setup
         Navigator.pushReplacementNamed(context, '/');
       }
-    } on FirebaseAuthException catch (e) {
+    } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = _friendlyError(e.code);
+        _errorMessage = e.toString().contains('UnimplementedError')
+            ? 'Backend not yet connected. Coming soon!'
+            : 'Sign up failed. Please try again.';
       });
-    } catch (_) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Something went wrong. Please try again.';
-      });
-    }
-  }
-
-  String _friendlyError(String code) {
-    switch (code) {
-      case 'email-already-in-use':
-        return 'An account with this email already exists.';
-      case 'invalid-email':
-        return 'Please enter a valid email address.';
-      case 'weak-password':
-        return 'Password is too weak. Use at least 6 characters.';
-      case 'operation-not-allowed':
-        return 'Email sign-up is not enabled. Contact support.';
-      default:
-        return 'Sign up failed. Please try again.';
     }
   }
 }

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme.dart';
 import 'core/app_theme.dart';
 import 'core/theme_controller.dart';
-import 'services/firebase_init.dart';
 import 'features/onboarding/role_selection_screen.dart';
 import 'features/hub/control_center_screen.dart';
 import 'features/scan/scanning_screen.dart';
@@ -20,7 +19,7 @@ import 'features/map/community_map_screen.dart';
 // ── Auth screens ──
 import 'features/auth/auth_gate.dart';
 import 'features/auth/login_screen.dart';
-import 'features/auth/signup_screen.dart';
+import 'features/auth/register_screen.dart';
 import 'features/auth/individual_registration_screen.dart';
 import 'features/auth/professional_registration_screen.dart';
 
@@ -32,8 +31,6 @@ void main() async {
     systemNavigationBarColor: VeriScanTheme.background,
     systemNavigationBarIconBrightness: Brightness.light,
   ));
-
-  await initializeFirebase();
 
   runApp(const ProviderScope(child: VeriScanApp()));
 }
@@ -68,7 +65,8 @@ class VeriScanApp extends ConsumerWidget {
         page = const LoginScreen();
         break;
       case '/signup':
-        page = const SignUpScreen();
+      case '/register':          // primary registration entry point
+        page = const RegisterScreen();
         break;
       case '/register-individual':
         page = const IndividualRegistrationScreen();

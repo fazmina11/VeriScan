@@ -1,80 +1,79 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Wraps Firebase Auth email/password and Firestore user profile operations.
+/// Authentication service backed by VeriScan FastAPI.
+/// Replaces the removed Firebase Auth + Firestore implementation.
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static const _tokenKey = 'jwt_token';
+  static const _userEmailKey = 'user_email';
+  static const _userRoleKey = 'user_role';
 
-  /// Current user (null if not logged in).
-  User? get currentUser => _auth.currentUser;
+  final _storage = const FlutterSecureStorage();
 
-  /// Stream of auth state changes.
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  // ── Token helpers ──
 
-  // ── Email / Password ──
+  Future<String?> getStoredToken() => _storage.read(key: _tokenKey);
 
-  /// Sign up with email and password.
-  Future<UserCredential> signUpWithEmail(
-      String email, String password) async {
-    return _auth.createUserWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
+  Future<void> saveToken(String token) => _storage.write(key: _tokenKey, value: token);
+
+  Future<void> saveUserMeta({required String email, required String role}) async {
+    await _storage.write(key: _userEmailKey, value: email);
+    await _storage.write(key: _userRoleKey, value: role);
   }
+
+  Future<String?> getStoredEmail() => _storage.read(key: _userEmailKey);
+  Future<String?> getStoredRole() => _storage.read(key: _userRoleKey);
+
+  /// Returns true if a JWT token is present in secure storage.
+  Future<bool> isLoggedIn() async {
+    final token = await getStoredToken();
+    return token != null && token.isNotEmpty;
+  }
+
+  // ── Auth state stream (replaces Firebase authStateChanges) ──
+
+  /// Emits [true] if logged in, [false] otherwise.
+  /// Checked once on startup; BLoC/Notifier handles subsequent changes.
+  Future<bool> checkAuthState() => isLoggedIn();
+
+  // ── API calls (wired to FastAPI in next phase) ──
 
   /// Sign in with email and password.
-  Future<UserCredential> signInWithEmail(
-      String email, String password) async {
-    return _auth.signInWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
+  /// Calls POST /auth/login on the FastAPI backend.
+  /// Returns the JWT token on success.
+  Future<String> signInWithEmail(String email, String password) async {
+    // TODO: wire to ApiService.post('/auth/login', {...})
+    throw UnimplementedError('signInWithEmail: FastAPI not yet wired.');
   }
 
-  // ── Firestore Profile ──
-
-  /// Check if a user profile exists in Firestore.
-  Future<bool> userProfileExists(String uid) async {
-    final doc = await _firestore.collection('users').doc(uid).get();
-    return doc.exists;
+  /// Sign up with email and password.
+  /// Calls POST /auth/register on the FastAPI backend.
+  Future<String> signUpWithEmail(String email, String password) async {
+    // TODO: wire to ApiService.post('/auth/register', {...})
+    throw UnimplementedError('signUpWithEmail: FastAPI not yet wired.');
   }
 
   /// Save individual user profile.
   Future<void> saveIndividualProfile({
-    required String uid,
     required String fullName,
     required bool locationEnabled,
   }) async {
-    await _firestore.collection('users').doc(uid).set({
-      'role': 'individual',
-      'fullName': fullName,
-      'locationEnabled': locationEnabled,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    // TODO: wire to ApiService.post('/auth/profile', {...})
+    throw UnimplementedError('saveIndividualProfile: FastAPI not yet wired.');
   }
 
   /// Save professional user profile.
   Future<void> saveProfessionalProfile({
-    required String uid,
     required String organizationName,
     required String licenseId,
     required String businessAddress,
     required String roleType,
   }) async {
-    await _firestore.collection('users').doc(uid).set({
-      'role': 'professional',
-      'organizationName': organizationName,
-      'licenseId': licenseId,
-      'businessAddress': businessAddress,
-      'roleType': roleType,
-      'verified': false,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    // TODO: wire to ApiService.post('/auth/profile', {...})
+    throw UnimplementedError('saveProfessionalProfile: FastAPI not yet wired.');
   }
 
-  /// Sign out.
+  /// Sign out — clears all stored tokens.
   Future<void> signOut() async {
-    await _auth.signOut();
+    await _storage.deleteAll();
   }
 }

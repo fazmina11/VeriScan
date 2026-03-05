@@ -1,8 +1,8 @@
-import 'package:firebase_core/firebase_core.dart';
+// Firebase has been removed from this project.
+// Authentication is handled via FastAPI backend (see lib/features/auth/auth_service.dart).
+// This file is kept as a placeholder so existing imports in main.dart continue to compile.
 
-/// Initialize Firebase services.
-/// NOTE: Requires google-services.json (Android) and
-/// GoogleService-Info.plist (iOS) to be configured in the project.
+/// No-op — Firebase is not used. Kept for backward compatibility during migration.
 Future<void> initializeFirebase() async {
-  await Firebase.initializeApp();
+  // Nothing to initialize — using FastAPI backend instead.
 }
