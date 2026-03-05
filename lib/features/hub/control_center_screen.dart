@@ -294,11 +294,9 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
         decoration: BoxDecoration(
           color: const Color(0xFF1A1D26),
           borderRadius: BorderRadius.circular(12),
-          border: Border(
-            top: BorderSide(color: const Color(0xFF00F0FF), width: 2),
-            left: BorderSide(color: Colors.white.withAlpha(10)),
-            right: BorderSide(color: Colors.white.withAlpha(10)),
-            bottom: BorderSide(color: Colors.white.withAlpha(10)),
+          border: Border.all(
+            color: const Color(0xFF00F0FF).withAlpha(80),
+            width: 1.5,
           ),
         ),
         child: const Center(
@@ -320,11 +318,9 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
       decoration: BoxDecoration(
         color: const Color(0xFF1A1D26),
         borderRadius: BorderRadius.circular(12),
-        border: Border(
-          top: const BorderSide(color: Color(0xFF00F0FF), width: 2),
-          left: BorderSide(color: Colors.white.withAlpha(15)),
-          right: BorderSide(color: Colors.white.withAlpha(15)),
-          bottom: BorderSide(color: Colors.white.withAlpha(15)),
+        border: Border.all(
+          color: const Color(0xFF00F0FF).withAlpha(80),
+          width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
@@ -571,6 +567,8 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
           setState(() => _currentNavIndex = i);
           if (i == 2) {
             Navigator.pushNamed(context, '/community-map');
+          } else if (i == 3) {
+            Navigator.pushNamed(context, '/settings');
           }
         },
         items: [

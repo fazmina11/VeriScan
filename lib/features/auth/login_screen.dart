@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../widgets/glass_card.dart';
-import 'auth_provider.dart';
+import '../../services/api_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -113,8 +113,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     });
 
     try {
-      final authService = ref.read(authServiceProvider);
-      await authService.signInWithEmail(email, password);
+      await ApiService().login(email: email, password: password);
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/hub');
       }
@@ -127,7 +126,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   String _mapError(String raw) {
-    if (raw.contains('user-not-found') || raw.contains('not found')) {
+    if (raw.contains('Invalid email or password')) {
+      return 'Incorrect email or password. Please try again.';
+    } else if (raw.contains('Cannot connect to server') ||
+        raw.contains('Connection refused') ||
+        raw.contains('SocketException')) {
+      return 'Cannot reach server. Make sure your backend is running and you are on the same WiFi network.';
+    } else if (raw.contains('422') || raw.contains('Unprocessable')) {
+      return 'Request format error. Please try again.';
+    } else if (raw.contains('user-not-found') || raw.contains('not found')) {
       return 'No account found with this email address.';
     } else if (raw.contains('wrong-password') || raw.contains('password')) {
       return 'Incorrect password. Please try again.';
