@@ -1,0 +1,6 @@
+Analyzing scanning_screen.dart, processing_screen.dart, authentic_result_screen.dart, danger_result_screen.dart...
+
+  error - lib\features\results\authentic_result_screen.dart:59:7 - Undefined name '_values'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\features\scan\scanning_screen.dart:120:20 - The named parameter 'license' is required, but there's no corresponding argument. Try adding the required argument. - missing_required_argument
+
+2 issues found.

@@ -1,17 +1,25 @@
-# veriscan
+# VeriScan 🔬
 
-A new Flutter project.
+AI-powered counterfeit medicine detection using multi-spectral analysis.
 
-## Getting Started
+## What is VeriScan?
+VeriScan is a real-time medicine authentication system that uses an ESP32 microcontroller 
+with an AS7343 18-channel spectral sensor to detect counterfeit medicines. 
+The Flutter mobile app connects via Bluetooth Low Energy (BLE), 
+receives spectral data, runs it through a Random Forest AI model via FastAPI, 
+and displays an AUTHENTIC or COUNTERFEIT result.
 
-This project is a starting point for a Flutter application.
+## Tech Stack
+- **Hardware:** ESP32 + AS7343 spectral sensor + 3D printed dark chamber
+- **Mobile App:** Flutter (Riverpod, flutter_blue_plus, fl_chart)
+- **Backend:** FastAPI + SQLite + Random Forest AI
+- **AI Report:** Google Gemini 1.5 Flash
+- **Communication:** Bluetooth Low Energy (BLE)
 
-A few resources to get you started if this is your first Flutter project:
+## Result Codes
+- `CODE:A` = COUNTERFEIT (cosine similarity below threshold)
+- `CODE:B` = AUTHENTIC — Optimal condition
+- `CODE:C` = AUTHENTIC — Degraded condition (still safe)
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Team
+Built for hackathon 2026.

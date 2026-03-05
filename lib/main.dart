@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide ChangeNotifierProvider;
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'services/ble_service.dart';
 import 'core/theme.dart';
 import 'core/app_theme.dart';
 import 'core/theme_controller.dart';
@@ -23,6 +26,7 @@ import 'features/auth/register_screen.dart';
 import 'features/auth/individual_registration_screen.dart';
 import 'features/auth/professional_registration_screen.dart';
 import 'features/hub/settings_screen.dart';
+import 'features/ble/ble_connect_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,7 +37,14 @@ void main() async {
     systemNavigationBarIconBrightness: Brightness.light,
   ));
 
-  runApp(const ProviderScope(child: VeriScanApp()));
+  runApp(
+    ProviderScope(
+      child: ChangeNotifierProvider(
+        create: (_) => BleService(),
+        child: const VeriScanApp(),
+      ),
+    ),
+  );
 }
 
 class VeriScanApp extends ConsumerWidget {
@@ -114,6 +125,9 @@ class VeriScanApp extends ConsumerWidget {
         break;
       case '/settings':
         page = const SettingsScreen();
+        break;
+      case '/ble-connect':
+        page = const BleConnectScreen();
         break;
       default:
         page = const AuthGate();

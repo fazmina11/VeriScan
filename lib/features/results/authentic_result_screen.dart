@@ -1,4 +1,6 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/theme.dart';
 import '../../core/neon_styles.dart';
 import '../../widgets/glowing_button.dart';
@@ -16,6 +18,14 @@ class _AuthenticResultScreenState extends State<AuthenticResultScreen>
   late AnimationController _glowController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _glowAnimation;
+
+  final _dio = Dio();
+  static const _storage = FlutterSecureStorage();
+
+  // Route data
+  String _resultCode = '';
+  double _similarity = 0.0;
+  double _confidence = 0.0;
 
   @override
   void initState() {
@@ -35,6 +45,18 @@ class _AuthenticResultScreenState extends State<AuthenticResultScreen>
     _glowAnimation = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _readArgs());
+  }
+
+  void _readArgs() {
+    final args = ModalRoute.of(context)?.settings.arguments as Map?;
+    if (args == null) return;
+    setState(() {
+      _resultCode = args['resultCode'] as String? ?? '';
+      _similarity = (args['similarity'] as num?)?.toDouble() ?? 0.0;
+      _confidence = (args['confidence'] as num?)?.toDouble() ?? 0.0;
+    });
   }
 
   @override
@@ -43,6 +65,41 @@ class _AuthenticResultScreenState extends State<AuthenticResultScreen>
     _glowController.dispose();
     super.dispose();
   }
+
+  Future<void> _saveToHistory() async {
+    try {
+      final token = await _storage.read(key: 'auth_token');
+      await _dio.post(
+        'http://10.0.2.2:8000/scan/save',
+        data: {
+          'medicine_name': 'Unknown',
+          'result_code': _resultCode,
+          'similarity_score': _similarity,
+          'ai_confidence': _confidence,
+          'gemini_report': '',
+        },
+        options: Options(
+          headers: {
+            if (token != null && token.isNotEmpty)
+              'Authorization': 'Bearer $token',
+          },
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Scan saved!')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save — check connection.')),
+        );
+      }
+    }
+  }
+
+  String _fmt(double v) => (v * 100).toStringAsFixed(1);
 
   @override
   Widget build(BuildContext context) {
@@ -110,11 +167,45 @@ class _AuthenticResultScreenState extends State<AuthenticResultScreen>
                     shadows: NeonStyles.textGlow(VeriScanTheme.green),
                   ),
                 ),
+                // Result code badge
+                if (_resultCode.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: VeriScanTheme.green.withAlpha(25),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: VeriScanTheme.green.withAlpha(80)),
+                    ),
+                    child: Text(
+                      _resultCode,
+                      style: TextStyle(
+                        color: VeriScanTheme.green,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Text(
                   'This tablet matches the verified\nspectral signature database.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 20),
+                // ── Scores ──
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildScoreBadge(
+                        'Spectral Match', '${_fmt(_similarity)}%', VeriScanTheme.cyan),
+                    const SizedBox(width: 16),
+                    _buildScoreBadge(
+                        'AI Confidence', '${_fmt(_confidence)}%', VeriScanTheme.green),
+                  ],
                 ),
                 const Spacer(),
                 // ── Buttons ──
@@ -128,13 +219,45 @@ class _AuthenticResultScreenState extends State<AuthenticResultScreen>
                 GlowingButton(
                   label: 'SAVE TO HISTORY',
                   icon: Icons.save_rounded,
-                  onPressed: () {},
+                  onPressed: _saveToHistory,
                 ),
                 const SizedBox(height: 40),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildScoreBadge(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withAlpha(15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withAlpha(60)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 10,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../services/ble_service.dart';
 import '../../core/theme.dart';
 import '../../core/neon_styles.dart';
 
@@ -16,6 +18,10 @@ class _ScanningScreenState extends State<ScanningScreen>
   late AnimationController _spectrumController;
   late Animation<double> _pulseAnimation;
 
+  // Status shown on screen
+  String _statusLine1 = 'Capturing Spectral Data...';
+  String _statusLine2 = 'Hold device steady against tablet';
+
   @override
   void initState() {
     super.initState();
@@ -31,12 +37,57 @@ class _ScanningScreenState extends State<ScanningScreen>
       vsync: this,
     )..repeat();
 
-    // Auto-navigate to processing after 4 seconds
-    Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/processing');
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _runAnalysis();
     });
+  }
+
+  Future<void> _runAnalysis() async {
+    // Keep animation running for at least 3 seconds
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+
+    final ble = Provider.of<BleService>(context, listen: false);
+
+    // Check if we have real sensor data
+    if (ble.rawBleString.isNotEmpty) {
+      // Real data path — send to FastAPI
+      final result = await ble.analyzeWithAI();
+
+      if (!mounted) return;
+
+      if (result.containsKey('error')) {
+        // Show error as snackbar but still navigate
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('AI Error: ${result['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.pushReplacementNamed(context, '/result-danger',
+            arguments: result);
+        return;
+      }
+
+      final verdict = (result['verdict'] ?? '').toString().toLowerCase();
+      final isAuthentic = verdict.contains('fresh') ||
+          verdict.contains('para') ||
+          verdict.contains('authentic') ||
+          verdict.contains('real');
+
+      Navigator.pushReplacementNamed(
+        context,
+        isAuthentic ? '/result-authentic' : '/result-danger',
+        arguments: result,
+      );
+    } else {
+      // No BLE data — demo mode fallback
+      final isAuth = DateTime.now().millisecond.isEven;
+      Navigator.pushReplacementNamed(
+        context,
+        isAuth ? '/result-authentic' : '/result-danger',
+      );
+    }
   }
 
   @override
@@ -45,6 +96,16 @@ class _ScanningScreenState extends State<ScanningScreen>
     _spectrumController.dispose();
     super.dispose();
   }
+
+  void _setStatus(String line1, String line2) {
+    if (!mounted) return;
+    setState(() {
+      _statusLine1 = line1;
+      _statusLine2  = line2;
+    });
+  }
+
+  // ── UI ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -75,14 +136,14 @@ class _ScanningScreenState extends State<ScanningScreen>
               const SizedBox(height: 40),
               // ── Status Text ──
               Text(
-                'Capturing Spectral Data...',
+                _statusLine1,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   shadows: NeonStyles.textGlow(VeriScanTheme.cyan),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Hold device steady against tablet',
+                _statusLine2,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 48),

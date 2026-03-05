@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/theme.dart';
 import '../../core/neon_styles.dart';
 import '../../widgets/glowing_button.dart';
@@ -16,6 +17,10 @@ class _DangerResultScreenState extends State<DangerResultScreen>
   late AnimationController _pulseController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _pulseAnimation;
+
+  // Route data
+  double _similarity = 0.0;
+  double _confidence = 0.0;
 
   @override
   void initState() {
@@ -35,6 +40,27 @@ class _DangerResultScreenState extends State<DangerResultScreen>
     _pulseAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _readArgs();
+      _triggerVibration();
+    });
+  }
+
+  void _readArgs() {
+    final args = ModalRoute.of(context)?.settings.arguments as Map?;
+    if (args == null) return;
+    setState(() {
+      _similarity = (args['similarity'] as num?)?.toDouble() ?? 0.0;
+      _confidence = (args['confidence'] as num?)?.toDouble() ?? 0.0;
+    });
+  }
+
+  Future<void> _triggerVibration() async {
+    for (int i = 0; i < 3; i++) {
+      HapticFeedback.heavyImpact();
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
   }
 
   @override
@@ -43,6 +69,8 @@ class _DangerResultScreenState extends State<DangerResultScreen>
     _pulseController.dispose();
     super.dispose();
   }
+
+  String _fmt(double v) => (v * 100).toStringAsFixed(1);
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +144,18 @@ class _DangerResultScreenState extends State<DangerResultScreen>
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
+                const SizedBox(height: 20),
+                // ── Score badges ──
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildScoreBadge(
+                        'Spectral Match', '${_fmt(_similarity)}%', VeriScanTheme.red),
+                    const SizedBox(width: 16),
+                    _buildScoreBadge(
+                        'AI Confidence', '${_fmt(_confidence)}%', Colors.orange),
+                  ],
+                ),
                 const Spacer(),
                 // ── Buttons ──
                 GlowingButton(
@@ -139,6 +179,38 @@ class _DangerResultScreenState extends State<DangerResultScreen>
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildScoreBadge(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withAlpha(15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withAlpha(60)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 10,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }

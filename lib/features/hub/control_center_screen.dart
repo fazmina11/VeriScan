@@ -1,13 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/theme.dart';
 import '../../core/neon_styles.dart';
 import '../../core/theme_controller.dart';
 import '../../widgets/glass_card.dart';
-import '../../widgets/glowing_button.dart';
 
 class ControlCenterScreen extends ConsumerStatefulWidget {
   const ControlCenterScreen({super.key});
@@ -24,6 +25,11 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
   late AnimationController _floatController;
   late Animation<double> _floatAnimation;
   final TextEditingController _searchController = TextEditingController();
+
+  // ── BLE State ────────────────────────────────────────────────────────────
+  BluetoothDevice? _connectedDevice;
+  StreamSubscription? _connectionSub;
+  bool _isDeviceConnected = false;
 
   // ── User data state ──────────────────────────────────────────────────────
   String _fullName = '';
@@ -45,7 +51,36 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
     _floatAnimation = Tween<double>(begin: -8, end: 8).animate(
       CurvedAnimation(parent: _floatController, curve: Curves.easeInOut),
     );
+    _checkExistingConnection();
+    _listenForConnections();
     _loadUserData();
+  }
+
+  void _checkExistingConnection() {
+    final connected = FlutterBluePlus.connectedDevices;
+    for (final device in connected) {
+      if (device.platformName == 'VeriScan') {
+        setState(() {
+          _connectedDevice = device;
+          _isDeviceConnected = true;
+        });
+      }
+    }
+  }
+
+  void _listenForConnections() {
+    _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
+      if (event.device.platformName == 'VeriScan') {
+        setState(() {
+          _isDeviceConnected =
+              event.connectionState == BluetoothConnectionState.connected;
+          _connectedDevice =
+              event.connectionState == BluetoothConnectionState.connected
+                  ? event.device
+                  : null;
+        });
+      }
+    });
   }
 
   Future<void> _loadUserData() async {
@@ -70,6 +105,7 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
 
   @override
   void dispose() {
+    _connectionSub?.cancel();
     _ringController.dispose();
     _floatController.dispose();
     _searchController.dispose();
@@ -172,12 +208,8 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
               // ── Search ──
               _buildSearchField(),
               const SizedBox(height: 20),
-              // ── Scan Button ──
-              GlowingButton(
-                label: 'START NEW SCAN',
-                icon: Icons.radar_rounded,
-                onPressed: () => Navigator.pushNamed(context, '/scanning'),
-              ),
+              // ── BLE Status & Scan Button ──
+              _buildBleStatusArea(),
               const SizedBox(height: 20),
             ],
           ),
@@ -549,6 +581,110 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBleStatusArea() {
+    if (!_isDeviceConnected) {
+      return GestureDetector(
+        onTap: () => Navigator.pushNamed(context, '/scanning'),
+        child: GlassCard(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: VeriScanTheme.cyan.withAlpha(20),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.bluetooth_rounded, color: VeriScanTheme.cyan),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('PAIR WITH VERISCAN',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2)),
+                    const SizedBox(height: 4),
+                    Text('Tap to connect your device',
+                        style: TextStyle(
+                            color: Colors.white70, fontSize: 13)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: VeriScanTheme.cyan),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      borderColor: VeriScanTheme.green.withAlpha(80),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: VeriScanTheme.green,
+                  boxShadow: [
+                    BoxShadow(
+                      color: VeriScanTheme.green.withAlpha(100),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    )
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('VeriScan Connected',
+                        style: TextStyle(
+                            color: VeriScanTheme.green,
+                            fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text(_connectedDevice?.platformName ?? 'VeriScan',
+                        style: TextStyle(
+                            color: Colors.white70, fontSize: 13)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/scanning'),
+              icon: const Icon(Icons.radar_rounded, size: 20),
+              label: const Text('START SCAN', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: VeriScanTheme.green.withAlpha(20),
+                foregroundColor: VeriScanTheme.green,
+                elevation: 0,
+                side: BorderSide(color: VeriScanTheme.green.withAlpha(80)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -5,7 +5,7 @@
 import FlutterMacOS
 import Foundation
 
-import flutter_blue_plus_darwin
+import flutter_blue_plus
 import flutter_secure_storage_macos
 import shared_preferences_foundation
 

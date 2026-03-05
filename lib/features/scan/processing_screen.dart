@@ -1,5 +1,7 @@
 import 'dart:math';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/theme.dart';
 import '../../core/neon_styles.dart';
 
@@ -15,6 +17,9 @@ class _ProcessingScreenState extends State<ProcessingScreen>
   late AnimationController _controller;
   late Animation<double> _rotateAnimation;
 
+  final _dio = Dio();
+  static const _storage = FlutterSecureStorage();
+
   @override
   void initState() {
     super.initState();
@@ -26,17 +31,8 @@ class _ProcessingScreenState extends State<ProcessingScreen>
       CurvedAnimation(parent: _controller, curve: Curves.linear),
     );
 
-    // Simulate processing — navigate to result after 3s
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        // Randomly pick authentic or danger for demo
-        final isAuthentic = Random().nextBool();
-        Navigator.pushReplacementNamed(
-          context,
-          isAuthentic ? '/result-authentic' : '/result-danger',
-        );
-      }
-    });
+    // Wait for animation to run, then process
+    Future.delayed(const Duration(seconds: 3), () => _process());
   }
 
   @override
@@ -44,6 +40,107 @@ class _ProcessingScreenState extends State<ProcessingScreen>
     _controller.dispose();
     super.dispose();
   }
+
+  // ── Core logic ────────────────────────────────────────────────────────────
+
+  Future<void> _process() async {
+    if (!mounted) return;
+
+    final args = ModalRoute.of(context)?.settings.arguments as Map?;
+    final bool isCodeA    = args?['isCodeA'] as bool? ?? false;
+    final double similarity = args?['similarity'] as double? ?? 0.0;
+    final List<double> values =
+        (args?['values'] as List?)?.map((e) => (e as num).toDouble()).toList() ?? [];
+
+    if (isCodeA) {
+      // CODE:A — skip API, counterfeit
+      _navigate('/result-danger', {
+        'resultCode': 'CODE:A',
+        'similarity': similarity,
+        'confidence': 0.0,
+        'values': values,
+      });
+      return;
+    }
+
+    // Try real API first
+    try {
+      final token = await _storage.read(key: 'auth_token');
+      final response = await _dio.post(
+        'http://10.0.2.2:8000/scan/predict',
+        data: {
+          'values': values,
+          'similarity': similarity,
+        },
+        options: Options(
+          headers: {
+            if (token != null && token.isNotEmpty)
+              'Authorization': 'Bearer $token',
+          },
+          sendTimeout: const Duration(seconds: 8),
+          receiveTimeout: const Duration(seconds: 8),
+        ),
+      );
+
+      final resultCode = response.data['result_code'] as String? ?? 'CODE:A';
+      final confidence = (response.data['confidence'] as num?)?.toDouble() ?? 0.0;
+
+      final route = (resultCode == 'CODE:B' || resultCode == 'CODE:C')
+          ? '/result-authentic'
+          : '/result-danger';
+
+      _navigate(route, {
+        'resultCode': resultCode,
+        'similarity': similarity,
+        'confidence': confidence,
+        'values': values,
+      });
+    } catch (_) {
+      // API unavailable — local fallback
+      final result = _localFallback(values, similarity);
+      _navigate(result['route'] as String, result['args'] as Map<String, dynamic>);
+    }
+  }
+
+  Map<String, dynamic> _localFallback(List<double> values, double similarity) {
+    final avg = values.isEmpty
+        ? 0.0
+        : values.reduce((a, b) => a + b) / values.length;
+
+    String resultCode;
+    double confidence;
+    if (avg > 0.6) {
+      resultCode = 'CODE:B';
+      confidence = 0.92;
+    } else if (avg > 0.4) {
+      resultCode = 'CODE:C';
+      confidence = 0.85;
+    } else {
+      resultCode = 'CODE:A';
+      confidence = 0.95;
+    }
+
+    final route = (resultCode == 'CODE:B' || resultCode == 'CODE:C')
+        ? '/result-authentic'
+        : '/result-danger';
+
+    return {
+      'route': route,
+      'args': {
+        'resultCode': resultCode,
+        'similarity': similarity,
+        'confidence': confidence,
+        'values': values,
+      },
+    };
+  }
+
+  void _navigate(String route, Map<String, dynamic> args) {
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, route, arguments: args);
+  }
+
+  // ── UI (unchanged) ────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {

@@ -1,0 +1,186 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../services/ble_service.dart';
+import '../../core/theme.dart';
+import '../../core/neon_styles.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/glowing_button.dart';
+
+class BleConnectScreen extends StatelessWidget {
+  const BleConnectScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final bleService = Provider.of<BleService>(context);
+
+    return Scaffold(
+      backgroundColor: VeriScanTheme.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded,
+                        color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Connect Device',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 500),
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: VeriScanTheme.surface,
+                  boxShadow: bleService.isConnected
+                      ? NeonStyles.greenGlow
+                      : bleService.isScanning
+                          ? NeonStyles.cyanGlow
+                          : NeonStyles.purpleGlow,
+                  border: Border.all(
+                    color: bleService.isConnected
+                        ? VeriScanTheme.green
+                        : bleService.isScanning
+                            ? VeriScanTheme.cyan
+                            : VeriScanTheme.purple,
+                    width: 2,
+                  ),
+                ),
+                child: Icon(
+                  bleService.isConnected
+                      ? Icons.bluetooth_connected_rounded
+                      : bleService.isScanning
+                          ? Icons.bluetooth_searching_rounded
+                          : Icons.bluetooth_rounded,
+                  color: bleService.isConnected
+                      ? VeriScanTheme.green
+                      : bleService.isScanning
+                          ? VeriScanTheme.cyan
+                          : VeriScanTheme.purple,
+                  size: 80,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                bleService.connectionStatus,
+                style: TextStyle(
+                  color: bleService.isConnected
+                      ? VeriScanTheme.green
+                      : VeriScanTheme.cyan,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              if (bleService.lastSpectralValues.isNotEmpty)
+                Text(
+                  '✓ Receiving NIR Data — ${bleService.lastSpectralValues.length} channels',
+                  style: const TextStyle(
+                    color: VeriScanTheme.green,
+                    fontSize: 13,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              if (bleService.isScanning) ...[
+                const SizedBox(height: 16),
+                LinearProgressIndicator(
+                  backgroundColor: Colors.white12,
+                  valueColor: AlwaysStoppedAnimation(VeriScanTheme.cyan),
+                ),
+              ],
+              const SizedBox(height: 24),
+              if (bleService.isConnected &&
+                  bleService.lastSpectralValues.isNotEmpty)
+                GlassCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'LIVE NIR DATA',
+                        style: TextStyle(
+                          color: VeriScanTheme.cyan,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 60,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: bleService.lastSpectralValues
+                              .take(12)
+                              .map((v) => Container(
+                                    width: 16,
+                                    height: (v * 60).clamp(4.0, 60.0),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(4),
+                                      gradient: const LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [
+                                          VeriScanTheme.purple,
+                                          VeriScanTheme.cyan,
+                                        ],
+                                      ),
+                                    ),
+                                  ))
+                              .toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const Spacer(),
+              if (!bleService.isConnected)
+                GlowingButton(
+                  label: bleService.isScanning
+                      ? 'SCANNING...'
+                      : 'SCAN FOR DEVICE',
+                  icon: Icons.bluetooth_searching_rounded,
+                  onPressed:
+                      bleService.isScanning ? null : bleService.startScan,
+                ),
+              if (bleService.isConnected) ...[
+                GlowingButton(
+                  label: 'PROCEED TO SCAN',
+                  icon: Icons.radar_rounded,
+                  type: GlowButtonType.success,
+                  onPressed: () =>
+                      Navigator.pushNamed(context, '/scanning'),
+                ),
+                const SizedBox(height: 12),
+                GlowingButton(
+                  label: 'DISCONNECT',
+                  icon: Icons.bluetooth_disabled_rounded,
+                  type: GlowButtonType.danger,
+                  onPressed: bleService.disconnect,
+                ),
+              ],
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
