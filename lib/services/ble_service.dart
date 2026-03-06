@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:http/http.dart' as http;
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class BleService extends ChangeNotifier {
@@ -15,6 +17,8 @@ class BleService extends ChangeNotifier {
   List<double> lastSpectralValues = [];
   String serverVerdict = '';
   double confidence = 0.0;
+  String selectedMedicine = '';
+  List<String> availableMedicines = ['Paracetamol', 'Combiflam'];
 
   // ── Internal ──
   BluetoothDevice? _device;
@@ -24,7 +28,7 @@ class BleService extends ChangeNotifier {
 
   // ── CHANGE THIS to your laptop WiFi IP from Step 5 above ──
   static const String _laptopIp = '192.168.221.44';
-  static const String _predictUrl = 'http://$_laptopIp:8000/predict';
+  static const String _predictUrl = 'http://$_laptopIp:8001/predict';
 
   // ─────────────────────────────────────────
   // SCAN FOR ESP32
@@ -32,7 +36,6 @@ class BleService extends ChangeNotifier {
   Future<void> startScan() async {
     if (isScanning || _connecting) return;
 
-    // Request permissions first
     final granted = await _requestPermissions();
     if (!granted) return;
 
@@ -40,38 +43,54 @@ class BleService extends ChangeNotifier {
     _connecting = false;
     rawBleString = '';
     serverVerdict = '';
-    connectionStatus = 'Scanning for VeriScan device...';
+    connectionStatus = 'Scanning...';
     notifyListeners();
 
     _scanSub?.cancel();
     await FlutterBluePlus.stopScan();
     await Future.delayed(const Duration(milliseconds: 500));
 
-    // Listen BEFORE starting scan
     _scanSub = FlutterBluePlus.onScanResults.listen((results) async {
-      // results is a list — check ALL of them, not just first
       for (final r in results) {
-        final n1 = r.device.platformName.toUpperCase();
-        final n2 = r.advertisementData.advName.toUpperCase();
-        final combined = n1 + n2;
+        if (_connecting || isConnected) return;
 
-        if (combined.contains('VERISCAN') || combined.contains('ESP32')) {
-          if (_connecting || isConnected) return;
+        final n1 = r.device.platformName;
+        final n2 = r.advertisementData.advName;
+        final id = r.device.remoteId.toString().toUpperCase();
+
+        // Show EVERY device found — for debugging
+        connectionStatus = 'Seeing: "${n1}" / "${n2}" / $id';
+        notifyListeners();
+
+        final combined = (n1 + n2).toUpperCase();
+        final bool nameMatch = combined.contains('VERISCAN') ||
+            combined.contains('ESP32') ||
+            combined.contains('BLE');
+
+        // Also match by exact MAC address of your ESP32
+        final bool macMatch = id == '70:4B:CA:26:10:6E';
+
+        final serviceUuids = r.advertisementData.serviceUuids
+            .map((u) => u.toString().toLowerCase())
+            .toList();
+        final bool uuidMatch = serviceUuids
+            .contains('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
+
+        if (nameMatch || uuidMatch || macMatch) {
           _connecting = true;
           isScanning = false;
-          connectionStatus = 'Found ${r.device.platformName}! Connecting...';
+          connectionStatus = 'Found! Connecting to ${n1.isNotEmpty ? n1 : id}...';
           notifyListeners();
-
           _scanSub?.cancel();
           await FlutterBluePlus.stopScan();
           await _connect(r.device);
-          return; // exit after finding device
+          return;
         }
       }
     });
 
     await FlutterBluePlus.startScan(
-      timeout: const Duration(seconds: 15),
+      timeout: const Duration(seconds: 20),
       androidUsesFineLocation: true,
     );
 
@@ -79,29 +98,53 @@ class BleService extends ChangeNotifier {
 
     if (!isConnected && !_connecting) {
       isScanning = false;
-      connectionStatus = 'Device not found. Is ESP32 powered on?';
+      connectionStatus = 'Not found. Make sure nRF is disconnected.';
       notifyListeners();
     }
   }
 
   Future<bool> _requestPermissions() async {
-    final statuses = await [
-      Permission.bluetooth,
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-      Permission.locationWhenInUse,
-    ].request();
-
-    final allGranted = statuses.values.every(
-      (s) => s == PermissionStatus.granted || s == PermissionStatus.limited,
-    );
-
-    if (!allGranted) {
-      connectionStatus = 'Permissions denied. Please allow Bluetooth and Location.';
-      isScanning = false;
-      notifyListeners();
+    if (Platform.isAndroid) {
+      final sdk = await _getAndroidSdk();
+      
+      List<Permission> permissions = [];
+      
+      if (sdk >= 31) {
+        // Android 12+ — use new BLE permissions
+        permissions = [
+          Permission.bluetoothScan,
+          Permission.bluetoothConnect,
+          Permission.locationWhenInUse,
+        ];
+      } else {
+        // Android 11 and below
+        permissions = [
+          Permission.location,
+        ];
+      }
+      
+      final statuses = await permissions.request();
+      final denied = statuses.values.where(
+        (s) => s.isDenied || s.isPermanentlyDenied
+      ).toList();
+      
+      if (denied.isNotEmpty) {
+        connectionStatus = 'Please grant Bluetooth & Location permissions\nThen tap Scan again';
+        isScanning = false;
+        notifyListeners();
+        return false;
+      }
     }
-    return allGranted;
+    return true;
+  }
+
+  Future<int> _getAndroidSdk() async {
+    try {
+      final info = await DeviceInfoPlugin().androidInfo;
+      return info.version.sdkInt;
+    } catch (_) {
+      return 31; // assume Android 12+ if unknown
+    }
   }
 
   // ─────────────────────────────────────────
@@ -198,15 +241,15 @@ class BleService extends ChangeNotifier {
   // ─────────────────────────────────────────
   Future<Map<String, dynamic>> analyzeWithAI() async {
     if (rawBleString.isEmpty) {
-      return {'error': 'No sensor data. Connect ESP32 first.'};
+      return {'error': 'No sensor data received from ESP32.'};
     }
 
-    // Parse raw string into list of ints
     List<int> channels;
     try {
       channels = rawBleString
+          .trim()
           .split(',')
-          .map((e) => int.parse(e.trim()))
+          .map((e) => double.parse(e.trim()).round())
           .toList();
     } catch (e) {
       return {'error': 'Could not parse sensor data: $e'};
@@ -214,7 +257,7 @@ class BleService extends ChangeNotifier {
 
     if (channels.length != 18) {
       return {
-        'error': 'Expected 18 channels, got ${channels.length}. Wait for full reading.'
+        'error': 'Expected 18 channels, got ${channels.length}.'
       };
     }
 
@@ -227,29 +270,37 @@ class BleService extends ChangeNotifier {
           .post(
             Uri.parse(_predictUrl),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'channels': channels}),
+            body: jsonEncode({
+              'channels': channels,
+              'medicine': selectedMedicine,
+            }),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 15));
 
       isSendingToServer = false;
 
       if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        serverVerdict = json['verdict'] ?? 'Unknown';
-        confidence = (json['confidence'] ?? 0.0).toDouble();
-        connectionStatus = 'Analysis complete ✓';
+        final jsonBody = jsonDecode(response.body);
+        if (jsonBody.containsKey('error')) {
+          connectionStatus = 'AI error: ${jsonBody['error']}';
+          notifyListeners();
+          return {'error': jsonBody['error']};
+        }
+        serverVerdict = jsonBody['verdict'] ?? 'Unknown';
+        connectionStatus = 'Verdict: $serverVerdict ✓';
         notifyListeners();
-        return json;
+        return jsonBody;
       } else {
-        connectionStatus = 'Server error: ${response.statusCode}';
+        final msg = 'Server error ${response.statusCode}';
+        connectionStatus = msg;
         notifyListeners();
-        return {'error': 'Server returned ${response.statusCode}: ${response.body}'};
+        return {'error': msg};
       }
     } catch (e) {
       isSendingToServer = false;
-      connectionStatus = 'Network error — same WiFi?';
+      connectionStatus = 'Cannot reach server. Same WiFi?';
       notifyListeners();
-      return {'error': 'Cannot reach server. Are phone and laptop on same WiFi?\n$e'};
+      return {'error': e.toString()};
     }
   }
 
@@ -268,6 +319,20 @@ class BleService extends ChangeNotifier {
     rawBleString = '';
     lastSpectralValues = [];
     connectionStatus = 'Disconnected';
+    notifyListeners();
+  }
+
+  void resetState() {
+    isScanning = false;
+    isConnected = false;
+    _connecting = false;
+    rawBleString = '';
+    lastSpectralValues = [];
+    serverVerdict = '';
+    connectionStatus = 'Not connected';
+    _scanSub?.cancel();
+    _connSub?.cancel();
+    _device = null;
     notifyListeners();
   }
 

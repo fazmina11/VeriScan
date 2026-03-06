@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:provider/provider.dart';
 import '../../services/ble_service.dart';
 import '../../core/theme.dart';
@@ -6,12 +7,38 @@ import '../../core/neon_styles.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/glowing_button.dart';
 
-class BleConnectScreen extends StatelessWidget {
+class BleConnectScreen extends StatefulWidget {
   const BleConnectScreen({super.key});
+
+  @override
+  State<BleConnectScreen> createState() => _BleConnectScreenState();
+}
+
+class _BleConnectScreenState extends State<BleConnectScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Reset BLE state every time this screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final bleService = Provider.of<BleService>(context, listen: false);
+      bleService.resetState();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final bleService = Provider.of<BleService>(context);
+    final selectedMedicine = 
+        ModalRoute.of(context)?.settings.arguments as String? ?? '';
+    
+    if (selectedMedicine.isNotEmpty) {
+      // Keep provider in sync with the route argument locally without side effect builds
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (bleService.selectedMedicine != selectedMedicine) {
+            bleService.selectedMedicine = selectedMedicine;
+        }
+      });
+    }
 
     return Scaffold(
       backgroundColor: VeriScanTheme.background,
@@ -88,6 +115,30 @@ class BleConnectScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
+              StreamBuilder(
+                stream: FlutterBluePlus.onScanResults,
+                builder: (context, snapshot) {
+                  final results = snapshot.data ?? [];
+                  if (results.isEmpty) return const SizedBox();
+                  return Column(
+                    children: results.take(5).map((r) {
+                      final name = r.device.platformName.isNotEmpty
+                          ? r.device.platformName
+                          : r.advertisementData.advName.isNotEmpty
+                              ? r.advertisementData.advName
+                              : r.device.remoteId.toString();
+                      return Text(
+                        '📡 $name  RSSI:${r.rssi}',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
               if (bleService.lastSpectralValues.isNotEmpty)
                 Text(
                   '✓ Receiving NIR Data — ${bleService.lastSpectralValues.length} channels',
@@ -157,8 +208,9 @@ class BleConnectScreen extends StatelessWidget {
                       ? 'SCANNING...'
                       : 'SCAN FOR DEVICE',
                   icon: Icons.bluetooth_searching_rounded,
-                  onPressed:
-                      bleService.isScanning ? null : bleService.startScan,
+                  onPressed: bleService.isScanning ? null : () async {
+                    await bleService.startScan();
+                  },
                 ),
               if (bleService.isConnected) ...[
                 GlowingButton(

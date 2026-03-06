@@ -43,51 +43,73 @@ class _ScanningScreenState extends State<ScanningScreen>
   }
 
   Future<void> _runAnalysis() async {
-    // Keep animation running for at least 3 seconds
     await Future.delayed(const Duration(seconds: 3));
     if (!mounted) return;
 
     final ble = Provider.of<BleService>(context, listen: false);
 
-    // Check if we have real sensor data
-    if (ble.rawBleString.isNotEmpty) {
-      // Real data path — send to FastAPI
-      final result = await ble.analyzeWithAI();
-
-      if (!mounted) return;
-
-      if (result.containsKey('error')) {
-        // Show error as snackbar but still navigate
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('AI Error: ${result['error']}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        Navigator.pushReplacementNamed(context, '/result-danger',
-            arguments: result);
-        return;
-      }
-
-      final verdict = (result['verdict'] ?? '').toString().toLowerCase();
-      final isAuthentic = verdict.contains('fresh') ||
-          verdict.contains('para') ||
-          verdict.contains('authentic') ||
-          verdict.contains('real');
-
-      Navigator.pushReplacementNamed(
-        context,
-        isAuthentic ? '/result-authentic' : '/result-danger',
-        arguments: result,
+    if (ble.rawBleString.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No sensor data. Connect ESP32 first.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
       );
-    } else {
-      // No BLE data — demo mode fallback
-      final isAuth = DateTime.now().millisecond.isEven;
-      Navigator.pushReplacementNamed(
-        context,
-        isAuth ? '/result-authentic' : '/result-danger',
-      );
+      await Future.delayed(const Duration(seconds: 3));
+      if (mounted) Navigator.pop(context);
+      return;
     }
+
+    if (ble.selectedMedicine.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a medicine before scanning.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      await Future.delayed(const Duration(seconds: 3));
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+
+    final result = await ble.analyzeWithAI();
+    if (!mounted) return;
+
+    if (result.containsKey('error')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${result['error']}'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      await Future.delayed(const Duration(seconds: 4));
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+
+    final isAuthentic = result['is_authentic'] == true;
+
+    // Pass exact keys that result screens expect
+    final args = {
+      'resultCode': result['verdict'] ?? '',
+      'similarity': (result['similarity'] as num?)?.toDouble() ?? 0.0,
+      'confidence': (result['confidence'] as num?)?.toDouble() ?? 0.0,
+      'verdict': result['verdict'] ?? '',
+      'message': result['message'] ?? '',
+      'detected_medicine': result['detected_medicine'] ?? '',
+      'selected_medicine': ble.selectedMedicine,
+      'is_fresh': result['is_fresh'] ?? false,
+      'medicine_matches': result['medicine_matches'] ?? true,
+    };
+
+    Navigator.pushReplacementNamed(
+      context,
+      isAuthentic ? '/result-authentic' : '/result-danger',
+      arguments: args,
+    );
   }
 
   @override

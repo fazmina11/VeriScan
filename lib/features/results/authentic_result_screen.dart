@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../services/ble_service.dart';
+import '../../services/gemini_service.dart';
 import '../../core/theme.dart';
 import '../../core/neon_styles.dart';
 import '../../widgets/glowing_button.dart';
@@ -26,6 +28,11 @@ class _AuthenticResultScreenState extends State<AuthenticResultScreen>
   String _resultCode = '';
   double _similarity = 0.0;
   double _confidence = 0.0;
+  String _medicineName = '';
+  String _message = '';
+  String _geminiExplanation = '';
+  bool _isLoadingGemini = true;
+  final GeminiService _gemini = GeminiService();
 
   @override
   void initState() {
@@ -53,10 +60,34 @@ class _AuthenticResultScreenState extends State<AuthenticResultScreen>
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
     if (args == null) return;
     setState(() {
-      _resultCode = args['resultCode'] as String? ?? '';
+      _resultCode = args['resultCode'] as String? ?? 
+                    args['verdict'] as String? ?? '';
       _similarity = (args['similarity'] as num?)?.toDouble() ?? 0.0;
       _confidence = (args['confidence'] as num?)?.toDouble() ?? 0.0;
+      _medicineName = args['detected_medicine'] as String? ?? '';
+      _message = args['message'] as String? ?? '';
     });
+    _loadGeminiExplanation(args);
+  }
+
+  Future<void> _loadGeminiExplanation(Map args) async {
+    setState(() => _isLoadingGemini = true);
+    final explanation = await _gemini.explainScanResult(
+      verdict: args['verdict'] as String? ?? '',
+      detectedMedicine: args['detected_medicine'] as String? ?? '',
+      selectedMedicine: args['selected_medicine'] as String? ?? '',
+      isAuthentic: true,
+      isFresh: args['is_fresh'] as bool? ?? true,
+      medicineMatches: args['medicine_matches'] as bool? ?? true,
+      spectralMatch: (args['similarity'] as num?)?.toDouble() ?? 0.0,
+      aiConfidence: (args['confidence'] as num?)?.toDouble() ?? 0.0,
+    );
+    if (mounted) {
+      setState(() {
+        _geminiExplanation = explanation;
+        _isLoadingGemini = false;
+      });
+    }
   }
 
   @override
@@ -191,9 +222,93 @@ class _AuthenticResultScreenState extends State<AuthenticResultScreen>
                 ],
                 const SizedBox(height: 12),
                 Text(
-                  'This tablet matches the verified\nspectral signature database.',
+                  _message.isNotEmpty
+                      ? _message
+                      : 'This tablet matches the verified\nspectral signature database.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                if (_medicineName.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: VeriScanTheme.green.withAlpha(20),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: VeriScanTheme.green.withAlpha(60)),
+                    ),
+                    child: Text(
+                      '💊 $_medicineName',
+                      style: const TextStyle(
+                        color: VeriScanTheme.green,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: VeriScanTheme.green.withAlpha(10),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: VeriScanTheme.green.withAlpha(40),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.auto_awesome, 
+                               color: VeriScanTheme.green, size: 16),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'AI ANALYSIS',
+                            style: TextStyle(
+                              color: VeriScanTheme.green,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _isLoadingGemini
+                          ? Row(
+                              children: [
+                                SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: VeriScanTheme.green,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                const Text(
+                                  'Generating AI explanation...',
+                                  style: TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              _geminiExplanation,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                                height: 1.5,
+                              ),
+                            ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 20),
                 // ── Scores ──

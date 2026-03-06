@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../core/theme.dart';
 import '../../core/neon_styles.dart';
 import '../../widgets/glowing_button.dart';
+import '../../services/gemini_service.dart';
 
 class DangerResultScreen extends StatefulWidget {
   const DangerResultScreen({super.key});
@@ -21,6 +22,11 @@ class _DangerResultScreenState extends State<DangerResultScreen>
   // Route data
   double _similarity = 0.0;
   double _confidence = 0.0;
+  String _medicineName = '';
+  String _message = '';
+  String _geminiExplanation = '';
+  bool _isLoadingGemini = true;
+  final GeminiService _gemini = GeminiService();
 
   @override
   void initState() {
@@ -53,7 +59,30 @@ class _DangerResultScreenState extends State<DangerResultScreen>
     setState(() {
       _similarity = (args['similarity'] as num?)?.toDouble() ?? 0.0;
       _confidence = (args['confidence'] as num?)?.toDouble() ?? 0.0;
+      _medicineName = args['detected_medicine'] as String? ?? '';
+      _message = args['message'] as String? ?? '';
     });
+    _loadGeminiExplanation(args);
+  }
+
+  Future<void> _loadGeminiExplanation(Map args) async {
+    setState(() => _isLoadingGemini = true);
+    final explanation = await _gemini.explainScanResult(
+      verdict: args['verdict'] as String? ?? '',
+      detectedMedicine: args['detected_medicine'] as String? ?? '',
+      selectedMedicine: args['selected_medicine'] as String? ?? '',
+      isAuthentic: false,
+      isFresh: args['is_fresh'] as bool? ?? false,
+      medicineMatches: args['medicine_matches'] as bool? ?? true,
+      spectralMatch: (args['similarity'] as num?)?.toDouble() ?? 0.0,
+      aiConfidence: (args['confidence'] as num?)?.toDouble() ?? 0.0,
+    );
+    if (mounted) {
+      setState(() {
+        _geminiExplanation = explanation;
+        _isLoadingGemini = false;
+      });
+    }
   }
 
   Future<void> _triggerVibration() async {
@@ -140,9 +169,93 @@ class _DangerResultScreenState extends State<DangerResultScreen>
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Spectral signature DOES NOT match\nany verified medicine in the database.',
+                  _message.isNotEmpty
+                      ? _message
+                      : 'Spectral signature DOES NOT match\nany verified medicine in the database.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                if (_medicineName.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: VeriScanTheme.red.withAlpha(20),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: VeriScanTheme.red.withAlpha(60)),
+                    ),
+                    child: Text(
+                      '⚠️ Detected: $_medicineName',
+                      style: const TextStyle(
+                        color: VeriScanTheme.red,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: VeriScanTheme.red.withAlpha(10),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: VeriScanTheme.red.withAlpha(40),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.auto_awesome, 
+                               color: VeriScanTheme.red, size: 16),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'AI ANALYSIS',
+                            style: TextStyle(
+                              color: VeriScanTheme.red,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _isLoadingGemini
+                          ? Row(
+                              children: [
+                                SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: VeriScanTheme.red,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                const Text(
+                                  'Generating AI explanation...',
+                                  style: TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              _geminiExplanation,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                                height: 1.5,
+                              ),
+                            ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 20),
                 // ── Score badges ──

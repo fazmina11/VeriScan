@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import '../../core/theme.dart';
 import '../../core/neon_styles.dart';
 import '../../core/theme_controller.dart';
@@ -21,6 +22,7 @@ class ControlCenterScreen extends ConsumerStatefulWidget {
 class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
     with TickerProviderStateMixin {
   int _currentNavIndex = 0;
+  String _selectedMedicine = '';
   late AnimationController _ringController;
   late AnimationController _floatController;
   late Animation<double> _floatAnimation;
@@ -567,19 +569,46 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
   }
 
   Widget _buildSearchField() {
+    final medicines = ['Paracetamol', 'Combiflam'];
+    
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       borderRadius: 16,
-      child: TextField(
-        controller: _searchController,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: 'Select Medicine',
-          hintStyle: TextStyle(color: VeriScanTheme.textMuted),
-          prefixIcon: const Icon(Icons.search_rounded,
-              color: VeriScanTheme.cyan, size: 22),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedMedicine.isEmpty ? null : _selectedMedicine,
+          hint: Row(
+            children: [
+              Icon(Icons.medication_rounded,
+                   color: VeriScanTheme.cyan, size: 22),
+              const SizedBox(width: 12),
+              Text(
+                'Select Medicine',
+                style: TextStyle(color: VeriScanTheme.textMuted),
+              ),
+            ],
+          ),
+          dropdownColor: const Color(0xFF1A1D26),
+          isExpanded: true,
+          icon: Icon(Icons.keyboard_arrow_down_rounded,
+                     color: VeriScanTheme.cyan),
+          items: medicines.map((medicine) {
+            return DropdownMenuItem<String>(
+              value: medicine,
+              child: Text(
+                medicine,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                ),
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _selectedMedicine = value);
+            }
+          },
         ),
       ),
     );
@@ -588,7 +617,19 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
   Widget _buildBleStatusArea() {
     if (!_isDeviceConnected) {
       return GestureDetector(
-        onTap: () => Navigator.pushNamed(context, '/scanning'),
+        onTap: () {
+          if (_selectedMedicine.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please select a medicine first.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+          Navigator.pushNamed(context, '/ble-connect', 
+              arguments: _selectedMedicine);
+        },
         child: GlassCard(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -669,7 +710,10 @@ class _ControlCenterScreenState extends ConsumerState<ControlCenterScreen>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.pushNamed(context, '/scanning'),
+              onPressed: () {
+                Navigator.pushNamed(context, '/ble-connect',
+                    arguments: _selectedMedicine);
+              },
               icon: const Icon(Icons.radar_rounded, size: 20),
               label: const Text('START SCAN', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
               style: ElevatedButton.styleFrom(
